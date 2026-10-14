@@ -243,7 +243,8 @@ export type DiscardedResult = z.infer<typeof DiscardedResultSchema>;
 
 export const QueryRunSchema = z.object({
   query: z.string(),
-  purpose: z.enum(['MARKET', 'SUPPLIER']),
+  /** SOCIAL: menciones públicas en redes (añadido sin romper reportes guardados). */
+  purpose: z.enum(['MARKET', 'SUPPLIER', 'SOCIAL']),
   ok: z.boolean(),
   resultCount: z.number().int().nonnegative(),
   error: z.string().max(300).optional(),
@@ -278,6 +279,12 @@ export const ResearchReportSchema = z.object({
   incompleteModules: z.array(z.string()),
   queries: z.array(QueryRunSchema),
   searchProvider: z.string(),
+  /**
+   * Cómo se reunieron las ofertas. Opcional para que los reportes anteriores
+   * sigan cargando: sin valor = búsqueda automática (o demo si `isDemo`).
+   * 'assisted' = fichas que el usuario abrió y agregó una por una.
+   */
+  mode: z.enum(['automatic', 'assisted']).optional(),
   notes: z.array(z.string()),
 });
 export type ResearchReport = z.infer<typeof ResearchReportSchema>;

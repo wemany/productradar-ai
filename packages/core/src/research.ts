@@ -1,3 +1,4 @@
+import { resultsToSocialEvidence, SOCIAL_MENTION_DOMAINS, socialMentionQuery } from './ads';
 import { resultsToSupplierReferences } from './alibaba';
 import { getMarketConfig, type MarketConfig } from './markets';
 import { matchRank } from './matching';
@@ -11,10 +12,29 @@ export interface SearchInput {
   query: string;
   market: MarketConfig;
   count: number;
-  purpose: 'MARKET' | 'SUPPLIER';
+  /** MARKET: tiendas del país · SUPPLIER: alibaba.com · SOCIAL: menciones públicas en redes. */
+  purpose: 'MARKET' | 'SUPPLIER' | 'SOCIAL';
+  /**
+   * Restringe la búsqueda a estos dominios. Tavily usa `include_domains`; Brave
+   * añade operadores `site:` a la consulta. El gateway solo acepta una lista fija.
+   */
+  includeDomains?: string[];
 }
 
-/** Proveedor de búsqueda web (Brave vía gateway, Brave directo con clave propia, o demo). */
+/**
+ * Quita operadores `site:` (y los `OR`/`|` que quedan sueltos) de una consulta,
+ * para que la restricción de dominios la decida quien llama y no el texto.
+ */
+export function stripSiteOperators(query: string): string {
+  return query
+    .replace(/[-+]?\bsite:[^\s)"]*/gi, ' ')
+    .replace(/(^|\s)(?:OR|\|)(?=\s|$)/g, ' ')
+    .replace(/\(\s*\)/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Proveedor de búsqueda web (gateway, Tavily o Brave con clave propia, o demo). */
 export interface WebSearchProvider {
   readonly id: string;
   readonly label: string;
@@ -242,9 +262,37 @@ export async function runResearch(options: RunResearchOptions): Promise<Research
       }
     }
 
-    // 5. Publicidad
+    // 5. Publicidad: enlaces oficiales + menciones públicas en redes (no son anuncios)
     throwIfAborted(signal);
-    setModule('ads', 'OK', 'Enlaces a bibliotecas oficiales listos; cantidad de anuncios no verificable');
+    if (options.isDemo || options.providers.search.isDemo || searchFailedAll) {
+      setModule('ads', 'OK', 'Enlaces a bibliotecas oficiales listos; cantidad de anuncios no verificable');
+    } else {
+      setModule('ads', 'RUNNING');
+      const query = socialMentionQuery(options.product);
+      try {
+        const found = await options.providers.search.search(
+          { query, market, count: 10, purpose: 'SOCIAL', includeDomains: [...SOCIAL_MENTION_DOMAINS] },
+          signal,
+        );
+        const evidence = resultsToSocialEvidence(
+          found.map((f) => ({ ...f, query })),
+          now().toISOString(),
+        );
+        // Los conteos siguen en null: una mención no es un anuncio.
+        report = {
+          ...report,
+          adResearch: { ...report.adResearch, evidence, activeAdsCount: null, historicalAdsCount: null },
+          queries: [...report.queries, { query, purpose: 'SOCIAL', ok: true, resultCount: found.length }],
+        };
+        setModule('ads', 'OK', `Enlaces a bibliotecas oficiales listos · ${evidence.length} menciones públicas (no son conteo de anuncios)`);
+      } catch (error) {
+        if (signal?.aborted) throw new Cancelled('Investigación cancelada');
+        // Paso complementario: su fallo no vuelve parcial el reporte ni afecta el veredicto.
+        const message = errorMessage(error).slice(0, 200);
+        report = { ...report, queries: [...report.queries, { query, purpose: 'SOCIAL', ok: false, resultCount: 0, error: message }] };
+        setModule('ads', 'OK', `Enlaces a bibliotecas oficiales listos · no fue posible consultar menciones públicas (${message})`);
+      }
+    }
 
     // 6. Análisis
     setModule('analysis', 'RUNNING');

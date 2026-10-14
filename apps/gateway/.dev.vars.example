@@ -1,6 +1,10 @@
 # Copia este archivo como .dev.vars (ignorado por git) y completa los valores.
 # Nunca subas claves reales al repositorio.
+# Buscador: basta con una clave. Tavily tiene plan gratuito (app.tavily.com).
+TAVILY_API_KEY=
 BRAVE_API_KEY=
+# Opcional: "tavily" o "brave". Vacío = Tavily si hay TAVILY_API_KEY; si no, Brave.
+SEARCH_PROVIDER=
 ANTHROPIC_API_KEY=
 # Opcional: si se define, la extensión debe enviar este código.
 ACCESS_CODE=

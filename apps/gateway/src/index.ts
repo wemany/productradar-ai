@@ -11,9 +11,9 @@ import { enforceRateLimit } from './security/rate-limit';
 /**
  * Gateway de ProductRadar AI (Cloudflare Worker).
  *
- * Guarda las claves de Brave Search y Anthropic para que nunca viajen dentro de
- * la extensión. No es un proxy abierto: solo llama a los endpoints fijos de
- * Brave y Anthropic, nunca a URLs que envíe el cliente.
+ * Guarda las claves del buscador (Tavily o Brave Search) y de Anthropic para que
+ * nunca viajen dentro de la extensión. No es un proxy abierto: solo llama a los
+ * endpoints fijos de Tavily, Brave y Anthropic, nunca a URLs que envíe el cliente.
  *
  * Orden de controles: origen (CORS) → ruta/método → límite de frecuencia →
  * código de acceso → validación del cuerpo → presupuesto diario → proveedor.

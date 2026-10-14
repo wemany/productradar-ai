@@ -11,6 +11,7 @@ describe('health', () => {
       ok: true,
       version: '0.1.0',
       providers: { search: true, vision: true },
+      searchProvider: 'brave',
       accessCodeRequired: true,
     });
     const raw = JSON.stringify(json);
@@ -24,6 +25,21 @@ describe('health', () => {
     const { json } = await call('/v1/health', { env: makeEnv({ BRAVE_API_KEY: undefined, ANTHROPIC_API_KEY: '' }) });
     expect(HealthResponseSchema.parse(json).providers).toEqual({ search: false, vision: false });
     expect(json.accessCodeRequired).toBe(false);
+  });
+
+  it.each([
+    [{ TAVILY_API_KEY: 'test-tavily-key' }, 'tavily', true],
+    [{ TAVILY_API_KEY: 'test-tavily-key', BRAVE_API_KEY: undefined }, 'tavily', true],
+    [{ TAVILY_API_KEY: 'test-tavily-key', SEARCH_PROVIDER: 'brave' }, 'brave', true],
+    [{ SEARCH_PROVIDER: 'tavily' }, 'tavily', false],
+    [{ SEARCH_PROVIDER: ' Brave ' }, 'brave', true],
+    [{ SEARCH_PROVIDER: 'otro' }, 'brave', true],
+    [{ BRAVE_API_KEY: undefined }, 'brave', false],
+  ])('elige el buscador según SEARCH_PROVIDER y las claves (%o)', async (overrides, provider, search) => {
+    const { json } = await call('/v1/health', { env: makeEnv(overrides) });
+    const health = HealthResponseSchema.parse(json);
+    expect([health.searchProvider, health.providers.search]).toEqual([provider, search]);
+    expect(JSON.stringify(json)).not.toContain('test-tavily-key');
   });
 
   it('es público aunque haya código de acceso', async () => {

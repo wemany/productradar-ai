@@ -20,17 +20,26 @@ export interface PageSnapshot {
   priceTexts?: string[];
 }
 
+export type ItemCondition = 'NEW' | 'USED' | 'REFURBISHED' | 'DAMAGED';
+
 export interface ExtractedOffer {
   /** Nombre, SKU o GTIN propios de la oferta (variantes), si la página los publica. */
   name?: string;
   sku?: string;
   gtin?: string;
+  /** Precio actual (de venta). Nunca es un precio de lista o tachado. */
   price?: number;
   priceMax?: number;
+  /** Precio de lista o tachado publicado junto al actual: solo informativo, nunca se usa como precio. */
+  listPrice?: number;
   currency?: string;
   availability: Availability;
+  /** Condición publicada (itemCondition); ausente si la página no la indica. */
+  condition?: ItemCondition;
   seller?: string;
   url?: string;
+  /** Cantidad de ofertas que resume un AggregateOffer (offerCount). */
+  offerCount?: number;
   priceSource: PriceSource;
 }
 
@@ -46,6 +55,8 @@ export interface ExtractedProduct {
   category?: string;
   offers: ExtractedOffer[];
   source: 'JSON_LD' | 'MICRODATA' | 'META' | 'TITLE';
+  /** Nodo ProductGroup: sus ofertas propias pueden ser de variantes distintas. */
+  variantGroup?: boolean;
 }
 
 export interface PageExtraction {
@@ -141,10 +152,16 @@ function isObject(value: Json | undefined): value is { [key: string]: Json } {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+// Algunas tiendas escriben el tipo en minúsculas («product»): se normaliza a la forma de Schema.org.
+const KNOWN_TYPES = new Map(['Product', 'IndividualProduct', 'ProductModel', 'Vehicle', 'ProductGroup', 'Offer', 'AggregateOffer'].map((t) => [t.toLowerCase(), t]));
+
 function types(node: { [key: string]: Json }): string[] {
   const t = node['@type'];
   const list = Array.isArray(t) ? t : [t];
-  return list.filter((x): x is string => typeof x === 'string').map((x) => x.replace(/^https?:\/\/schema\.org\//i, ''));
+  return list
+    .filter((x): x is string => typeof x === 'string')
+    .map((x) => x.replace(/^https?:\/\/schema\.org\//i, ''))
+    .map((x) => KNOWN_TYPES.get(x.toLowerCase()) ?? x);
 }
 
 function firstString(value: Json | undefined): string | undefined {
@@ -186,6 +203,18 @@ export function isoCurrency(value: string | undefined): string | undefined {
   return upper && /^[A-Z]{3}$/.test(upper) ? upper : undefined;
 }
 
+function mapCondition(value: string | undefined): ItemCondition | undefined {
+  const v = value?.toLowerCase() ?? '';
+  if (/refurbished|renewed|reacondicionad/.test(v)) return 'REFURBISHED';
+  if (/used|usad/.test(v)) return 'USED';
+  if (/damaged/.test(v)) return 'DAMAGED';
+  if (/new|nuev/.test(v)) return 'NEW';
+  return undefined;
+}
+
+// Precios de referencia de priceSpecification.priceType (ListPrice, StrikethroughPrice, MSRP, SRP): no son el precio a pagar.
+const REFERENCE_PRICE_TYPE = /(?:listprice|strikethroughprice|m?srp)$/i;
+
 function offersFrom(value: Json | undefined, depth = 0): ExtractedOffer[] {
   if (depth > 4 || value === undefined || value === null) return [];
   if (Array.isArray(value)) return value.flatMap((v) => offersFrom(v, depth + 1)).slice(0, 50);
@@ -193,28 +222,36 @@ function offersFrom(value: Json | undefined, depth = 0): ExtractedOffer[] {
   const t = types(value);
   let currency = firstString(value['priceCurrency']);
   let priceRaw: Json | undefined = value['price'];
+  // priceSpecification puede traer el precio actual y el de lista/tachado: el de referencia
+  // queda solo como dato informativo; si es el único precio, la oferta no tiene precio.
+  let listRaw: Json | undefined;
   const spec = value['priceSpecification'];
-  if (priceRaw === undefined && spec !== undefined) {
-    const specs = Array.isArray(spec) ? spec : [spec];
-    for (const s of specs) {
-      if (isObject(s) && s['price'] !== undefined) {
-        priceRaw = s['price'];
-        currency = currency ?? firstString(s['priceCurrency']);
-        break;
-      }
+  const specList: Array<Json | undefined> = Array.isArray(spec) ? spec : [spec];
+  const specs = specList.filter(isObject).filter((s) => s['price'] !== undefined && s['price'] !== null);
+  for (const s of specs) {
+    if (REFERENCE_PRICE_TYPE.test(firstString(s['priceType'])?.trim() ?? '')) {
+      listRaw = listRaw ?? s['price'];
+    } else if (priceRaw === undefined) {
+      priceRaw = s['price'];
+      currency = currency ?? firstString(s['priceCurrency']);
     }
   }
+  currency = currency ?? firstString(specs[0]?.['priceCurrency']);
   const result: ExtractedOffer[] = [];
   const cur = isoCurrency(currency);
+  const condition = mapCondition(firstString(value['itemCondition']));
   if (t.includes('AggregateOffer') || value['lowPrice'] !== undefined) {
     const low = parseStructuredPrice(value['lowPrice'] ?? priceRaw ?? null, cur);
     const high = parseStructuredPrice(value['highPrice'] ?? null, cur);
+    const count = Number(firstString(value['offerCount']));
     if (low !== null) {
       result.push({
         price: low,
         priceMax: high !== null && high > low ? high : undefined,
         currency: cur,
         availability: mapAvailability(firstString(value['availability'])),
+        condition,
+        offerCount: Number.isInteger(count) && count > 0 ? count : undefined,
         priceSource: 'PAGE_JSON_LD',
       });
     }
@@ -223,14 +260,17 @@ function offersFrom(value: Json | undefined, depth = 0): ExtractedOffer[] {
   }
   const price = parseStructuredPrice(priceRaw ?? null, cur);
   if (price !== null) {
+    const list = parseStructuredPrice(listRaw ?? null, cur);
     result.push({
       name: cleanExternalText(firstString(value['name']), 200) || undefined,
       sku: cleanExternalText(firstString(value['sku']), 120) || undefined,
       gtin: (firstString(value['gtin13']) ?? firstString(value['gtin']) ?? firstString(value['gtin12']))?.replace(/\D/g, '') || undefined,
       price,
+      listPrice: list !== null && list > price ? list : undefined,
       currency: cur,
       availability: mapAvailability(firstString(value['availability'])),
-      seller: firstString(value['seller']),
+      condition,
+      seller: cleanExternalText(firstString(value['seller']), 120) || undefined,
       url: firstString(value['url']),
       priceSource: 'PAGE_JSON_LD',
     });
@@ -281,7 +321,7 @@ export function productsFromJsonLd(blocks: string[]): ExtractedProduct[] {
         const p = productFromNode(v);
         return { ...p, brand: p.brand ?? group.brand, image: p.image ?? group.image };
       });
-      if (group.offers.length || variantProducts.length === 0) products.push(group);
+      if (group.offers.length || variantProducts.length === 0) products.push({ ...group, variantGroup: true });
       products.push(...variantProducts);
       return;
     }

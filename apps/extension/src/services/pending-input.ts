@@ -7,6 +7,8 @@ import type { PageSnapshot } from '@productradar/core';
  */
 export type PendingInput =
   | { kind: 'snapshot'; snapshot: PageSnapshot }
+  /** Ficha que el usuario quiere agregar a la investigación asistida abierta. */
+  | { kind: 'addOffer'; snapshot: PageSnapshot }
   | { kind: 'url'; url: string }
   | { kind: 'imageUrl'; url: string; pageUrl?: string }
   | { kind: 'error'; message: string };

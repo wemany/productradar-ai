@@ -21,3 +21,4 @@ export * from './api';
 export * from './providers/gateway-client';
 export * from './demo';
 export * from './identity';
+export * from './assisted';

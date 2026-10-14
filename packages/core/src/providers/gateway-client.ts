@@ -7,6 +7,7 @@ import {
   SearchMarketResponseSchema,
   type HealthResponse,
   type IdentifyImageRequest,
+  type SearchMarketRequest,
   type VisionResult,
 } from '../api';
 import { SearchProviderError, type SearchInput, type WebSearchProvider } from '../research';
@@ -111,7 +112,7 @@ export async function gatewayIdentifyImage(options: GatewayOptions, request: Ide
 
 export class GatewaySearchProvider implements WebSearchProvider {
   readonly id = 'gateway';
-  readonly label = 'Servicio ProductRadar (Brave Search API)';
+  readonly label = 'Servicio ProductRadar (Tavily o Brave Search API)';
   constructor(private readonly options: GatewayOptions) {}
 
   async search(input: SearchInput, signal?: AbortSignal): Promise<SearchResultItem[]> {
@@ -120,13 +121,10 @@ export class GatewaySearchProvider implements WebSearchProvider {
         const res = await call(this.options, '/v1/search-alibaba', { method: 'POST', body: { query: input.query, market: input.market.code } }, SearchAlibabaResponseSchema, signal);
         return res.items;
       }
-      const res = await call(
-        this.options,
-        '/v1/search-market',
-        { method: 'POST', body: { queries: [input.query], market: input.market.code, count: input.count } },
-        SearchMarketResponseSchema,
-        signal,
-      );
+      // `includeDomains` viaja tal cual: el gateway lo valida contra su lista fija.
+      const body: SearchMarketRequest = { queries: [input.query], market: input.market.code, count: input.count };
+      if (input.includeDomains?.length) body.includeDomains = input.includeDomains as SearchMarketRequest['includeDomains'];
+      const res = await call(this.options, '/v1/search-market', { method: 'POST', body }, SearchMarketResponseSchema, signal);
       const first = res.results[0];
       if (!first) return [];
       if (!first.ok) throw new GatewayError(first.error?.code ?? 'UPSTREAM', first.error?.message ?? 'La consulta falló');

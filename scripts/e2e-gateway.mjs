@@ -44,7 +44,7 @@ const origin = `chrome-extension://${extensionId}`;
 const wranglerBin = resolve(root, 'apps/gateway/node_modules/wrangler/bin/wrangler.js');
 const gateway = spawn(
   process.execPath,
-  [wranglerBin, 'dev', '--port', String(PORT), '--ip', '127.0.0.1', '--var', `ALLOWED_ORIGINS:${origin}`, '--var', 'BRAVE_API_KEY:', '--var', 'ANTHROPIC_API_KEY:', '--show-interactive-dev-session=false'],
+  [wranglerBin, 'dev', '--port', String(PORT), '--ip', '127.0.0.1', '--var', `ALLOWED_ORIGINS:${origin}`, '--var', 'BRAVE_API_KEY:', '--var', 'TAVILY_API_KEY:', '--var', 'ANTHROPIC_API_KEY:', '--show-interactive-dev-session=false'],
   { cwd: resolve(root, 'apps/gateway'), env: { ...process.env, CI: '1', WRANGLER_SEND_METRICS: 'false' } },
 );
 let gatewayLog = '';
@@ -78,7 +78,9 @@ try {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(`${origin}/sidepanel.html`);
-  await page.getByRole('button', { name: 'Configurar servicio' }).click();
+  // Sin claves el modo por defecto es la investigación asistida: se elige el servicio en Configuración.
+  await page.locator('header').getByRole('button', { name: 'Configuración' }).click();
+  await page.getByRole('tab', { name: 'Servicio ProductRadar' }).click();
   await page.getByLabel('URL del servicio').fill(`http://localhost:${PORT}`);
   await page.getByRole('button', { name: 'Probar conexión' }).click();
   await page.getByText('Conectado').waitFor({ timeout: 15_000 });

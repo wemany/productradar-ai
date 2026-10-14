@@ -63,6 +63,7 @@ export function ConfirmScreen(props: ConfirmProps) {
   const nameError = touched && name.trim().length < 2 ? 'Escribe el nombre del producto.' : null;
   const gtinError = gtin.trim() && !/^\d{8,14}$/.test(gtin.trim()) ? 'El GTIN/EAN tiene entre 8 y 14 dígitos.' : null;
   const unconfigured = props.status.kind === 'unconfigured' && !props.demo;
+  const assisted = props.status.kind === 'assisted' && !props.demo;
 
   const submit = () => {
     setTouched(true);
@@ -256,7 +257,7 @@ export function ConfirmScreen(props: ConfirmProps) {
         </Field>
         {unconfigured && (
           <Callout tone="info" title="Falta configurar el buscador">
-            Para buscar competencia real configura el servicio o tu clave de Brave Search.
+            Para buscar competencia real configura el servicio o tu clave (Tavily gratuita o Brave Search), o cambia a «Investigación asistida (sin claves)».
             <div className="mt-2 flex flex-wrap gap-2">
               <Button size="sm" icon={<Settings2 className="size-3.5" />} onClick={props.onOpenSettings}>
                 Configurar
@@ -268,10 +269,12 @@ export function ConfirmScreen(props: ConfirmProps) {
           </Callout>
         )}
         <Button variant="primary" size="lg" className="w-full" icon={<Search className="size-4" aria-hidden />} onClick={submit} disabled={unconfigured}>
-          {es.confirm.search(country.name)}
+          {assisted ? es.confirm.assisted(country.name) : es.confirm.search(country.name)}
         </Button>
         <p className="text-center text-[11px] text-muted">
-          Consultaremos un buscador web y leeremos fichas públicas con tu permiso. La cobertura es una muestra, no todas las tiendas del país.
+          {assisted
+            ? 'Investigación asistida: te daremos enlaces a la búsqueda de cada tienda y tú agregas las fichas que elijas. Solo se leen esas páginas, tras tu clic. Es una muestra, no todas las tiendas del país.'
+            : 'Consultaremos un buscador web y leeremos fichas públicas con tu permiso. La cobertura es una muestra, no todas las tiendas del país.'}
         </p>
       </Card>
     </div>

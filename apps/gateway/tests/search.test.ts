@@ -3,6 +3,17 @@ import { describe, expect, it, vi } from 'vitest';
 import { buildAlibabaSiteQuery } from '../src/routes/search';
 import { braveBody, call, fetchedHosts, jsonReply, makeEnv, mockFetch } from './helpers';
 
+// Con `makeEnv()` (solo BRAVE_API_KEY) el gateway usa Brave; con TAVILY_API_KEY, Tavily.
+const TAVILY_KEY = 'tvly-test-key';
+
+function tavilyBody(results: Array<{ title: string; url: string; content?: string }>) {
+  return { query: 'x', results: results.map((r) => ({ content: `Descripción de ${r.title}`, score: 0.8, ...r })), response_time: 0.9 };
+}
+
+function sentBody(fetchMock: ReturnType<typeof mockFetch>, index = 0): Record<string, unknown> {
+  return JSON.parse(String(fetchMock.mock.calls[index]?.[1]?.body)) as Record<string, unknown>;
+}
+
 describe('POST /v1/search-market', () => {
   it('mapea la respuesta de Brave al contrato de la API', async () => {
     const fetchMock = mockFetch(() =>
@@ -174,5 +185,133 @@ describe('no es un proxy abierto', () => {
     await call('/v1/search-alibaba', { body: { query: 'http://localhost:8080/admin site:127.0.0.1', market: 'PE' } });
     expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(new Set(fetchedHosts(fetchMock))).toEqual(new Set(['api.search.brave.com']));
+  });
+
+  it('con Tavily solo llama a api.tavily.com', async () => {
+    const fetchMock = mockFetch(() => jsonReply(tavilyBody([{ title: 'x', url: 'https://www.alibaba.com/product-detail/x.html' }])));
+    const env = makeEnv({ TAVILY_API_KEY: TAVILY_KEY });
+    await call('/v1/search-market', { body: { queries: ['https://evil.example/robar', 'audífonos'], market: 'CO' }, env });
+    await call('/v1/search-alibaba', { body: { query: 'http://localhost:8080/admin', market: 'PE' }, env });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(new Set(fetchedHosts(fetchMock))).toEqual(new Set(['api.tavily.com']));
+  });
+});
+
+describe('Tavily (SEARCH_PROVIDER / TAVILY_API_KEY)', () => {
+  const env = makeEnv({ TAVILY_API_KEY: TAVILY_KEY });
+
+  it('con su clave es el buscador por defecto: POST con Bearer y country del mercado', async () => {
+    const fetchMock = mockFetch(() => jsonReply(tavilyBody([{ title: 'Licuadora', url: 'https://tienda.com.mx/p/1', content: 'Licuadora <b>600 W</b> a $ 899' }])));
+    const { status, json } = await call('/v1/search-market', { body: { queries: ['licuadora'], market: 'MX', count: 5 }, env });
+    expect(status).toBe(200);
+    const first = SearchMarketResponseSchema.parse(json).results[0];
+    expect(first?.items?.[0]).toMatchObject({ title: 'Licuadora', url: 'https://tienda.com.mx/p/1', snippet: 'Licuadora 600 W a $ 899' });
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(String(url)).toBe('https://api.tavily.com/search');
+    expect(init?.method).toBe('POST');
+    expect(new Headers(init?.headers).get('Authorization')).toBe(`Bearer ${TAVILY_KEY}`);
+    expect(sentBody(fetchMock)).toMatchObject({ query: 'licuadora', topic: 'general', search_depth: 'basic', max_results: 5, country: 'mexico', include_answer: false });
+    expect(String(init?.body)).not.toContain(TAVILY_KEY);
+    expect(JSON.stringify(json)).not.toContain(TAVILY_KEY);
+  });
+
+  it('SEARCH_PROVIDER=brave usa Brave aunque exista la clave de Tavily', async () => {
+    const fetchMock = mockFetch(() => jsonReply(braveBody([])));
+    await call('/v1/search-market', { body: { queries: ['x'], market: 'CO' }, env: makeEnv({ TAVILY_API_KEY: TAVILY_KEY, SEARCH_PROVIDER: 'brave' }) });
+    expect(fetchedHosts(fetchMock)).toEqual(['api.search.brave.com']);
+  });
+
+  it('SEARCH_PROVIDER=tavily sin su clave → 503 NOT_CONFIGURED (no cae a Brave)', async () => {
+    const fetchMock = mockFetch(() => jsonReply(braveBody([])));
+    const { status, json } = await call('/v1/search-market', { body: { queries: ['x'], market: 'CO' }, env: makeEnv({ SEARCH_PROVIDER: 'tavily' }) });
+    expect(status).toBe(503);
+    expect(json.error?.code).toBe('NOT_CONFIGURED');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('Alibaba: include_domains en lugar de site: y filtro por dominio', async () => {
+    const fetchMock = mockFetch(() =>
+      jsonReply(
+        tavilyBody([
+          { title: 'Proveedor', url: 'https://www.alibaba.com/product-detail/earbuds_1.html' },
+          { title: 'Otro', url: 'https://evil.example/alibaba.com' },
+        ]),
+      ),
+    );
+    const { status, json } = await call('/v1/search-alibaba', { body: { query: 'wireless earbuds site:evil.example', market: 'CO' }, env });
+    expect(status).toBe(200);
+    expect(SearchAlibabaResponseSchema.parse(json).items.map((i) => i.title)).toEqual(['Proveedor']);
+    expect(sentBody(fetchMock)).toMatchObject({ query: 'wireless earbuds', include_domains: ['alibaba.com'], country: 'colombia' });
+  });
+
+  it.each([
+    [432, 'QUOTA_EXCEEDED'],
+    [433, 'QUOTA_EXCEEDED'],
+    [429, 'RATE_LIMITED'],
+  ])('Tavily HTTP %i → %s por consulta', async (upstream, code) => {
+    mockFetch(() => jsonReply({ detail: { error: 'mensaje remoto' } }, upstream));
+    const { status, json } = await call('/v1/search-market', { body: { queries: ['x'], market: 'CO' }, env });
+    expect(status).toBe(200);
+    const first = SearchMarketResponseSchema.parse(json).results[0];
+    expect([first?.ok, first?.error?.code]).toEqual([false, code]);
+    expect(JSON.stringify(json)).not.toContain('mensaje remoto');
+  });
+
+  it('clave rechazada por Tavily → NOT_CONFIGURED sin detalles', async () => {
+    mockFetch(() => jsonReply({ detail: { error: 'Unauthorized: missing or invalid API key.' } }, 401));
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { json } = await call('/v1/search-market', { body: { queries: ['x'], market: 'CO' }, env });
+    const first = SearchMarketResponseSchema.parse(json).results[0];
+    expect(first?.error?.code).toBe('NOT_CONFIGURED');
+    expect(first?.error?.message).not.toMatch(/clave|key|token/i);
+    expect(String(errorLog.mock.calls[0]?.[0])).toContain('TAVILY_API_KEY');
+  });
+});
+
+describe('includeDomains (menciones públicas en redes)', () => {
+  const socialBody = { queries: ['"Licuadora Oster"'], market: 'CO', includeDomains: ['facebook.com', 'instagram.com', 'tiktok.com'] };
+  const mixed = [
+    { title: 'Post', url: 'https://www.facebook.com/oster/posts/1' },
+    { title: 'Reel', url: 'https://www.instagram.com/reel/abc' },
+    { title: 'Tienda', url: 'https://tienda.com.co/p/oster' },
+    { title: 'Falso', url: 'https://facebook.com.evil.example/p' },
+  ];
+
+  it('Brave: añade los operadores site: y devuelve solo resultados de esas redes', async () => {
+    const fetchMock = mockFetch(() => jsonReply(braveBody(mixed)));
+    const { status, json } = await call('/v1/search-market', { body: socialBody });
+    expect(status).toBe(200);
+    const url = new URL(String(fetchMock.mock.calls[0]?.[0]));
+    expect(url.searchParams.get('q')).toBe('"Licuadora Oster" (site:facebook.com OR site:instagram.com OR site:tiktok.com)');
+    expect(SearchMarketResponseSchema.parse(json).results[0]?.items?.map((i) => i.title)).toEqual(['Post', 'Reel']);
+  });
+
+  it('Tavily: los envía como include_domains', async () => {
+    const fetchMock = mockFetch(() => jsonReply(tavilyBody(mixed)));
+    const { json } = await call('/v1/search-market', { body: socialBody, env: makeEnv({ TAVILY_API_KEY: TAVILY_KEY }) });
+    expect(sentBody(fetchMock)).toMatchObject({ query: '"Licuadora Oster"', include_domains: ['facebook.com', 'instagram.com', 'tiktok.com'] });
+    expect(SearchMarketResponseSchema.parse(json).results[0]?.items?.map((i) => i.title)).toEqual(['Post', 'Reel']);
+  });
+
+  it.each([[['evil.example']], [['alibaba.com']], [['facebook.com', 'x.com']], [[]], ['facebook.com']])('400 con dominios fuera de la lista fija: %j', async (includeDomains) => {
+    const fetchMock = mockFetch(() => jsonReply(braveBody([])));
+    const { status, json } = await call('/v1/search-market', { body: { ...socialBody, includeDomains } });
+    expect(status).toBe(400);
+    expect(json.error?.code).toBe('BAD_REQUEST');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('la caché distingue búsquedas con y sin includeDomains', async () => {
+    const store = new Map<string, Response>();
+    vi.stubGlobal('caches', {
+      default: {
+        match: async (key: string) => store.get(key)?.clone(),
+        put: async (key: string, response: Response) => void store.set(key, response),
+      },
+    });
+    const fetchMock = mockFetch(() => jsonReply(braveBody(mixed)));
+    await call('/v1/search-market', { body: socialBody });
+    await call('/v1/search-market', { body: { queries: socialBody.queries, market: 'CO' } });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

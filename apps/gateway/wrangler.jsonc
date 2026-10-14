@@ -10,11 +10,14 @@
   "compatibility_flags": [],
 
   // SECRETOS: nunca en este archivo ni en el repositorio. Se definen con:
-  //   npx wrangler secret put BRAVE_API_KEY
+  //   npx wrangler secret put TAVILY_API_KEY   (buscador recomendado; plan gratuito)
+  //   npx wrangler secret put BRAVE_API_KEY    (alternativa)
   //   npx wrangler secret put ANTHROPIC_API_KEY
   //   npx wrangler secret put ACCESS_CODE      (opcional)
   // En local se usan desde .dev.vars (ver .dev.vars.example; .dev.vars está en .gitignore).
   "vars": {
+    // Buscador: "tavily" o "brave". Vacío = Tavily si existe TAVILY_API_KEY; si no, Brave.
+    "SEARCH_PROVIDER": "",
     "VISION_MODEL": "claude-opus-5-5",
     "DAILY_SEARCH_LIMIT": "2000",
     "DAILY_VISION_LIMIT": "200",

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { SOCIAL_MENTION_DOMAINS } from './ads';
 import { MarketSchema } from './schemas';
 
 /**
@@ -40,10 +41,19 @@ export const SearchResultItemSchema = z.object({
     .optional(),
 });
 
+/**
+ * Dominios que el gateway acepta en `includeDomains`: lista fija (solo las redes
+ * de menciones públicas) para que la ruta no sirva como buscador libre.
+ * Los proveedores de Alibaba van por `/v1/search-alibaba`, que fuerza su dominio.
+ */
+export const ALLOWED_INCLUDE_DOMAINS = SOCIAL_MENTION_DOMAINS;
+
 export const SearchMarketRequestSchema = z.object({
   queries: z.array(z.string().trim().min(1).max(API_LIMITS.maxQueryLength)).min(1).max(API_LIMITS.maxQueriesPerRequest),
   market: MarketSchema,
   count: z.number().int().min(1).max(API_LIMITS.maxResultsPerQuery).optional(),
+  /** Restringe todas las consultas a estos dominios (solo valores de `ALLOWED_INCLUDE_DOMAINS`). */
+  includeDomains: z.array(z.enum(ALLOWED_INCLUDE_DOMAINS)).min(1).max(ALLOWED_INCLUDE_DOMAINS.length).optional(),
 });
 export type SearchMarketRequest = z.infer<typeof SearchMarketRequestSchema>;
 
@@ -121,6 +131,8 @@ export const HealthResponseSchema = z.object({
     search: z.boolean(),
     vision: z.boolean(),
   }),
+  /** Buscador que usa el gateway (opcional: los gateways anteriores no lo envían). */
+  searchProvider: z.enum(['tavily', 'brave']).optional(),
   accessCodeRequired: z.boolean(),
 });
 export type HealthResponse = z.infer<typeof HealthResponseSchema>;

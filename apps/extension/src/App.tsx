@@ -1,4 +1,15 @@
-import { getMarketConfig, identityFromSnapshot, type Market, type ProductIdentity, type ResearchReport } from '@productradar/core';
+import {
+  addOfferToReport,
+  createAssistedReport,
+  getMarketConfig,
+  identityFromSnapshot,
+  isAssistedReport,
+  offerFromSnapshot,
+  type Market,
+  type PageSnapshot,
+  type ProductIdentity,
+  type ResearchReport,
+} from '@productradar/core';
 import { Clock, Settings2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { DemoBanner } from './components/DemoBanner';
@@ -21,7 +32,7 @@ type View =
   | { name: 'home'; notice?: string; tab?: HomeTab; url?: string; imageUrl?: string }
   | { name: 'confirm'; draft: ProductIdentity; demo: boolean }
   | { name: 'progress'; productName: string; demo: boolean }
-  | { name: 'report'; report: ResearchReport }
+  | { name: 'report'; report: ResearchReport; notice?: string }
   | { name: 'settings' }
   | { name: 'history' };
 
@@ -32,6 +43,11 @@ export function App() {
   const [market, setMarket] = useState<Market>('CO');
   const mainRef = useRef<HTMLElement>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Vista actual para las entradas del menú contextual (sin re-suscribir el listener en cada cambio).
+  const viewRef = useRef<View>(view);
+  useEffect(() => {
+    viewRef.current = view;
+  }, [view]);
 
   useEffect(() => {
     if (settingsState.loaded) setMarket(settingsState.settings.market);
@@ -43,16 +59,47 @@ export function App() {
     window.scrollTo({ top: 0 });
   }, []);
 
+  const updateReport = useCallback((report: ResearchReport, notice?: string) => {
+    setView({ name: 'report', report, notice });
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => void saveReport(report), 400);
+  }, []);
+
+  // Menú contextual «Agregar esta ficha»: solo sobre una investigación asistida abierta.
+  const addPendingOffer = useCallback(
+    (snapshot: PageSnapshot) => {
+      const current = viewRef.current;
+      if (current.name !== 'report') {
+        go({ name: 'home', notice: 'No hay una investigación abierta. Abre una investigación asistida (o créala) y vuelve a agregar la ficha.' });
+        return;
+      }
+      const { report } = current;
+      if (!isAssistedReport(report)) {
+        setView({ name: 'report', report, notice: 'Solo puedes agregar fichas a una investigación asistida (sin claves). Esta investigación usa búsqueda automática o es una demostración.' });
+        return;
+      }
+      const { offer, error } = offerFromSnapshot(snapshot, report.product, getMarketConfig(report.country), new Date().toISOString());
+      if (!offer) setView({ name: 'report', report, notice: error });
+      else
+        updateReport(
+          addOfferToReport(report, offer),
+          offer.evidence.verification === 'PAGE_VERIFIED' ? `Ficha agregada: ${offer.seller}, con precio verificado.` : `Ficha agregada sin precio verificado: ${offer.verificationError ?? 'sin precio estructurado'}.`,
+        );
+    },
+    [go, updateReport],
+  );
+
   // Entradas que deja el service worker (menú contextual / atajo de teclado).
   const handlePending = useCallback(
     (input: PendingInput) => {
       const currency = getMarketConfig(market).currency;
       if (input.kind === 'snapshot') go({ name: 'confirm', draft: identityFromSnapshot(input.snapshot, currency), demo: false });
+      else if (input.kind === 'addOffer') addPendingOffer(input.snapshot);
       else if (input.kind === 'url') go({ name: 'home', tab: 'url', url: input.url });
       else if (input.kind === 'imageUrl') go({ name: 'home', tab: 'photo', imageUrl: input.url });
       else go({ name: 'home', notice: input.message });
     },
-    [go, market],
+    [go, market, addPendingOffer],
   );
   useEffect(() => {
     const check = () => void takePendingInput().then((p) => p && !research.running && handlePending(p));
@@ -68,6 +115,13 @@ export function App() {
   const openDemo = () => go({ name: 'confirm', draft: getDemoFixture().product, demo: true });
 
   const startResearch = async (identity: ProductIdentity, m: Market, demo: boolean) => {
+    if (!demo && settingsState.status.kind === 'assisted') {
+      // Sin buscador: el reporte nace vacío y el usuario agrega las fichas que elija.
+      const report = createAssistedReport(identity, m);
+      await saveReport(report);
+      go({ name: 'report', report });
+      return;
+    }
     go({ name: 'progress', productName: identity.name, demo });
     try {
       const final = await research.start({ product: identity, country: m, settings: settingsState.settings, secrets: settingsState.secrets, demo });
@@ -76,12 +130,6 @@ export function App() {
       const message = e instanceof NotConfiguredError ? e.message : `No fue posible completar la investigación: ${e instanceof Error ? e.message : 'error desconocido'}`;
       go({ name: 'home', notice: message });
     }
-  };
-
-  const updateReport = (report: ResearchReport) => {
-    setView({ name: 'report', report });
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => void saveReport(report), 400);
   };
 
   const openReport = async (id: string) => {
@@ -156,7 +204,8 @@ export function App() {
         ) : view.name === 'report' ? (
           <ReportScreen
             report={view.report}
-            onChange={updateReport}
+            notice={view.notice}
+            onChange={(r) => updateReport(r)}
             onNew={() => go({ name: 'home' })}
             onBack={() => go({ name: 'home' })}
             onOpenSettings={() => go({ name: 'settings' })}

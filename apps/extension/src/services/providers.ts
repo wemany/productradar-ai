@@ -9,6 +9,7 @@ import {
   type ResearchProviders,
 } from '@productradar/core';
 import { BraveSearchProvider } from '@productradar/core/providers/brave';
+import { TavilySearchProvider } from '@productradar/core/providers/tavily';
 import fixtureJson from '../../../../fixtures/explicitly-demo-data.json';
 import { ExtensionPageFetcher } from './fetcher';
 import { getInstallId, serviceStatus, type Secrets, type Settings } from './settings';
@@ -25,6 +26,8 @@ export async function createResearchProviders(settings: Settings, secrets: Secre
   if (demo) return createDemoProviders(getDemoFixture(), 380);
   const status = serviceStatus(settings, secrets);
   if (status.kind === 'unconfigured') throw new NotConfiguredError(status.reason);
+  // En modo asistido la app no llama a esta función: las fichas las agrega el usuario.
+  if (status.kind === 'assisted') throw new NotConfiguredError('La investigación asistida no usa un buscador automático: agrega fichas desde las tiendas.');
   const fetcher = new ExtensionPageFetcher();
   if (status.kind === 'gateway') {
     return {
@@ -32,9 +35,14 @@ export async function createResearchProviders(settings: Settings, secrets: Secre
       fetcher,
     };
   }
-  return { search: new BraveSearchProvider({ apiKey: secrets.braveApiKey ?? '' }), fetcher };
+  const search =
+    status.search === 'tavily'
+      ? new TavilySearchProvider({ apiKey: secrets.tavilyApiKey ?? '' })
+      : new BraveSearchProvider({ apiKey: secrets.braveApiKey ?? '' });
+  return { search, fetcher };
 }
 
+/** Proveedor de visión disponible; null en modo asistido o sin clave de Anthropic. */
 export function visionProviderLabel(settings: Settings, secrets: Secrets): string | null {
   const status = serviceStatus(settings, secrets);
   if (status.kind === 'gateway') return 'el servicio de ProductRadar (Anthropic Claude)';

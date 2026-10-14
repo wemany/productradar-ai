@@ -3,7 +3,7 @@ import { classifyMatch, describeMatch, matchRank, normalizeGtin, type MatchResul
 import type { MarketConfig } from './markets';
 import type { CompetitorOffer, ProductIdentity } from './schemas';
 import { assessMarketFit } from './search-results';
-import { alphanumericKey, truncate } from './text';
+import { alphanumericKey, normalizeText, truncate } from './text';
 
 export type FetchFailureKind = 'NO_PERMISSION' | 'BLOCKED' | 'NOT_FOUND' | 'TIMEOUT' | 'HTTP_ERROR' | 'NOT_HTML' | 'TOO_LARGE' | 'UNSAFE_URL' | 'NETWORK' | 'ABORTED';
 
@@ -73,7 +73,7 @@ export function applySnapshotToOffer(
 ): CompetitorOffer {
   const extraction = extractFromSnapshot(snapshot, market.currency);
   const { product, match } = bestProduct(identity, extraction.products);
-  const resolved = product ? resolveOffer(product, identity, market.currency) : { ambiguous: false };
+  const resolved: ResolvedOffer = product ? resolveOffer(product, identity, market.currency) : { ambiguous: false };
   const extractedOffer = resolved.offer;
 
   if (!product || !match) {
@@ -115,7 +115,9 @@ export function applySnapshotToOffer(
       method: offer.evidence.method === 'DEMO_FIXTURE' ? 'DEMO_FIXTURE' : 'PAGE',
       verification: 'PAGE_VERIFIED',
       extractedText: truncate(`${product.name ?? ''} — ${extractedOffer.price} ${extractedOffer.currency}${product.gtin ? ` — GTIN ${product.gtin}` : ''}`, 500),
-      note: `Precio leído de datos estructurados (${extractedOffer.priceSource === 'PAGE_JSON_LD' ? 'JSON-LD' : extractedOffer.priceSource === 'PAGE_MICRODATA' ? 'microdatos' : 'metadatos'})`,
+      note:
+        resolved.note ??
+        `Precio leído de datos estructurados (${extractedOffer.priceSource === 'PAGE_JSON_LD' ? 'JSON-LD' : extractedOffer.priceSource === 'PAGE_MICRODATA' ? 'microdatos' : 'metadatos'})`,
     };
     const fit = assessMarketFit(offer.url, market, extractedOffer.currency, `${product.name ?? ''} ${offer.evidence.extractedText ?? ''}`);
     updated.marketFit = fit.fit;
@@ -129,13 +131,23 @@ export function applySnapshotToOffer(
   return updated;
 }
 
+export const LOWEST_PRICE_NOTE = 'Precio más bajo publicado en la ficha (varios vendedores u oferta)';
+
+export interface ResolvedOffer {
+  offer?: ExtractedOffer;
+  ambiguous: boolean;
+  /** Nota de evidencia cuando el precio se eligió entre varias ofertas del mismo producto. */
+  note?: string;
+}
+
 /**
  * Elige la oferta que corresponde a la identidad. Si la ficha publica varios
  * precios distintos (variantes 50 ml / 100 ml, un rango de AggregateOffer…),
- * solo se acepta una oferta atada a la identidad por GTIN, SKU o nombre; si no,
- * el resultado es ambiguo y el precio NO se verifica.
+ * solo se acepta una oferta atada a la identidad por GTIN, SKU o nombre, o
+ * varias ofertas del mismo producto (`sameProductOffer`); si no, el resultado
+ * es ambiguo y el precio NO se verifica.
  */
-export function resolveOffer(product: ExtractedProduct, identity: ProductIdentity, currency: string): { offer?: ExtractedOffer; ambiguous: boolean } {
+export function resolveOffer(product: ExtractedProduct, identity: ProductIdentity, currency: string): ResolvedOffer {
   const priced = product.offers.filter((o) => o.price !== undefined && o.price > 0);
   if (priced.length === 0) return { ambiguous: false };
   const inCurrency = priced.filter((o) => o.currency === currency);
@@ -151,7 +163,55 @@ export function resolveOffer(product: ExtractedProduct, identity: ProductIdentit
   if (byCode.length && single(byCode)) return { offer: byCode[0], ambiguous: false };
   const byName = pool.filter((o) => o.name && classifyMatch(identity, { title: `${product.name ?? ''} ${o.name}`, brand: product.brand }).matchType === 'EXACT');
   if (byName.length && single(byName)) return { offer: byName[0], ambiguous: false };
+  const lowest = sameProductOffer(product, inCurrency);
+  if (lowest) return { offer: lowest, ambiguous: false, note: LOWEST_PRICE_NOTE };
   return { ambiguous: true };
+}
+
+/**
+ * Varias ofertas del MISMO producto (no variantes) → precio actual más bajo.
+ * Regla conservadora basada en fichas reales revisadas el 2026-10-14:
+ * - Éxito publica una oferta por vendedor (seller distinto, misma URL, sin
+ *   nombre ni SKU por oferta) en una ficha con SKU propio.
+ * - Falabella publica dos ofertas idénticas (mismo SKU y vendedor) que solo
+ *   difieren en el precio: el de oferta y el normal (tachado en la página).
+ * Sin vendedor ni código por oferta, dos precios pueden ser 50 ml y 100 ml, así
+ * que no se acepta; tampoco con señales de variante: nombre, SKU, GTIN o URL
+ * distintos entre ofertas (ahí aparecen tallas y capacidades), condición no
+ * nueva, nodo ProductGroup o tres o más precios de un mismo vendedor (p. ej.
+ * un precio con tarjeta). Un AggregateOffer sin detalle solo se acepta si
+ * resume varias ofertas (offerCount > 1) de un producto con GTIN válido.
+ */
+function sameProductOffer(product: ExtractedProduct, offers: ExtractedOffer[]): ExtractedOffer | undefined {
+  if (product.variantGroup || offers.length === 0) return undefined;
+  if (offers.some((o) => o.condition !== undefined && o.condition !== 'NEW')) return undefined;
+  if (offers.some((o) => o.priceMax !== undefined || o.offerCount !== undefined)) {
+    const [aggregate] = offers;
+    return offers.length === 1 && aggregate && (aggregate.offerCount ?? 0) > 1 && normalizeGtin(product.gtin) ? aggregate : undefined;
+  }
+  const varies = (pick: (o: ExtractedOffer) => string | undefined) => new Set(offers.map((o) => pick(o) ?? '')).size > 1;
+  if (
+    offers.length < 2 ||
+    varies((o) => o.name && normalizeText(o.name)) ||
+    varies((o) => o.sku && alphanumericKey(o.sku)) ||
+    varies((o) => normalizeGtin(o.gtin) ?? o.gtin) ||
+    varies((o) => o.url?.trim())
+  ) {
+    return undefined;
+  }
+  const sellers = offers.map((o) => normalizeText(o.seller ?? ''));
+  const multiSeller = Boolean(product.gtin || product.sku) && sellers.every(Boolean) && new Set(sellers).size === offers.length;
+  const [first, second] = offers;
+  const saleAndList =
+    offers.length === 2 && Boolean(first?.sku || first?.gtin) && new Set(sellers).size === 1 && !varies((o) => o.availability);
+  if (saleAndList && first && second) {
+    const [sale, list] = (first.price ?? 0) <= (second.price ?? 0) ? [first, second] : [second, first];
+    return { ...sale, listPrice: sale.listPrice ?? list.price };
+  }
+  if (!multiSeller) return undefined;
+  // Nunca el precio de una oferta agotada si hay otra disponible (o sin dato de disponibilidad).
+  const available = offers.filter((o) => o.availability !== 'OUT_OF_STOCK');
+  return (available.length ? available : offers).reduce((best, o) => ((o.price ?? Infinity) < (best.price ?? Infinity) ? o : best));
 }
 
 export function failOffer(offer: CompetitorOffer, error: unknown): CompetitorOffer {

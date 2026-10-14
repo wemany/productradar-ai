@@ -1,18 +1,21 @@
 import { DEFAULT_VISION_MODEL, gatewayHealth, normalizeGatewayUrl, type HealthResponse } from '@productradar/core';
-import { ArrowLeft, Check, Copy, Eye, EyeOff, FlaskConical, KeyRound, Server, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Check, Copy, ExternalLink, Eye, EyeOff, FlaskConical, ShieldCheck } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { browser } from 'wxt/browser';
 import { Badge, Button, Callout, Card, Field, Segmented, SectionTitle } from '../components/ui';
 import type { SettingsState } from '../hooks/useSettings';
 import { clearHistory, historyBytes } from '../services/history';
 import { hasBroadAccess, removeBroadAccess, requestBroadAccess, requestOrigins } from '../services/permissions';
-import { APP_VERSION, clearSecrets, getInstallId } from '../services/settings';
+import { APP_VERSION, clearSecrets, getInstallId, SEARCH_API_ORIGINS, type SearchProviderId } from '../services/settings';
 
 export function SettingsScreen({ state, onBack, onOpenDemo }: { state: SettingsState; onBack: () => void; onOpenDemo: () => void }) {
   const { settings, secrets } = state;
   const [mode, setMode] = useState(settings.mode);
   const [gatewayUrl, setGatewayUrl] = useState(settings.gatewayUrl);
   const [accessCode, setAccessCode] = useState(secrets.accessCode ?? '');
+  // Muestra el buscador que realmente se usa (p. ej., usuarios previos solo con clave de Brave).
+  const [search, setSearch] = useState<SearchProviderId>(state.status.kind === 'byok' ? state.status.search : settings.searchProvider);
+  const [tavily, setTavily] = useState(secrets.tavilyApiKey ?? '');
   const [brave, setBrave] = useState(secrets.braveApiKey ?? '');
   const [anthropic, setAnthropic] = useState(secrets.anthropicApiKey ?? '');
   const [model, setModel] = useState(settings.visionModel);
@@ -21,6 +24,7 @@ export function SettingsScreen({ state, onBack, onOpenDemo }: { state: SettingsS
   const [health, setHealth] = useState<{ ok: boolean; data?: HealthResponse; message?: string } | null>(null);
   const [testing, setTesting] = useState(false);
   const [saved, setSaved] = useState<string | null>(null);
+  const [keyError, setKeyError] = useState<string | null>(null);
   const [broad, setBroad] = useState(false);
   const [bytes, setBytes] = useState<number | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
@@ -38,7 +42,9 @@ export function SettingsScreen({ state, onBack, onOpenDemo }: { state: SettingsS
   };
 
   const saveService = () => {
-    if (mode === 'gateway') {
+    if (mode === 'assisted') {
+      void state.updateSettings({ mode: 'assisted' }).then(() => flash('Investigación asistida activada'));
+    } else if (mode === 'gateway') {
       const url = normalizeGatewayUrl(gatewayUrl);
       if (gatewayUrl.trim() && !url) return setHealth({ ok: false, message: 'La URL debe empezar por https://' });
       const origin = url && url.startsWith('https://') ? `${new URL(url).origin}/*` : null;
@@ -49,10 +55,14 @@ export function SettingsScreen({ state, onBack, onOpenDemo }: { state: SettingsS
         flash('Servicio guardado');
       });
     } else {
-      const permission = requestOrigins(['https://api.search.brave.com/*', 'https://api.anthropic.com/*']);
+      const key = search === 'tavily' ? tavily : brave;
+      if (!key.trim()) return setKeyError(search === 'tavily' ? 'Escribe tu clave de Tavily.' : 'Escribe tu clave de Brave Search.');
+      setKeyError(null);
+      // Sin `await` antes de pedir el permiso: Chrome exige el gesto del clic.
+      const permission = requestOrigins([SEARCH_API_ORIGINS[search], 'https://api.anthropic.com/*']);
       void permission.then(async (granted) => {
-        await state.updateSettings({ mode: 'byok', visionModel: model.trim() || DEFAULT_VISION_MODEL, rememberKeys: remember });
-        await state.updateSecrets({ accessCode, braveApiKey: brave, anthropicApiKey: anthropic }, remember);
+        await state.updateSettings({ mode: 'byok', searchProvider: search, visionModel: model.trim() || DEFAULT_VISION_MODEL, rememberKeys: remember });
+        await state.updateSecrets({ accessCode, tavilyApiKey: tavily, braveApiKey: brave, anthropicApiKey: anthropic }, remember);
         flash(granted ? 'Claves guardadas' : 'Claves guardadas, pero sin permiso para llamar a las APIs');
       });
     }
@@ -81,17 +91,39 @@ export function SettingsScreen({ state, onBack, onOpenDemo }: { state: SettingsS
 
       <section className="space-y-3">
         <SectionTitle eyebrow="Búsqueda e IA" title="Servicio" />
+        {/* Tres opciones en un panel estrecho: sin íconos para que quepan las etiquetas. */}
         <Segmented
           label="Modo de servicio"
           value={mode}
-          onChange={setMode}
+          onChange={(m) => {
+            setMode(m);
+            setKeyError(null);
+          }}
           options={[
-            { value: 'gateway', label: 'Servicio ProductRadar', icon: <Server className="size-3.5" aria-hidden /> },
-            { value: 'byok', label: 'Claves propias', icon: <KeyRound className="size-3.5" aria-hidden /> },
+            { value: 'assisted', label: 'Investigación asistida' },
+            { value: 'gateway', label: 'Servicio ProductRadar' },
+            { value: 'byok', label: 'Claves propias' },
           ]}
         />
         <Card className="space-y-3 p-4">
-          {mode === 'gateway' ? (
+          {mode === 'assisted' ? (
+            <>
+              <p className="text-[13px] font-semibold text-ink">Investigación asistida (sin claves)</p>
+              <ul className="list-disc space-y-1 pl-4 text-[12.5px] text-muted">
+                <li>No necesitas claves ni cuentas.</li>
+                <li>Tú abres las búsquedas en las tiendas y agregas las fichas de producto que te interesen: aparecen como «fichas agregadas por ti».</li>
+                <li>Los precios se leen solo de las páginas que agregues.</li>
+              </ul>
+              <Callout title="¿Quieres búsqueda automática en internet?">
+                Usa una clave gratuita de Tavily en «Claves propias» o un gateway en «Servicio ProductRadar».
+              </Callout>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="primary" onClick={saveService}>
+                  Guardar
+                </Button>
+              </div>
+            </>
+          ) : mode === 'gateway' ? (
             <>
               <p className="text-[12.5px] text-muted">
                 Un gateway (Cloudflare Worker) guarda las claves de búsqueda e IA fuera de la extensión. Puedes usar el del proyecto o desplegar el tuyo (ver README).
@@ -147,12 +179,65 @@ export function SettingsScreen({ state, onBack, onOpenDemo }: { state: SettingsS
             </>
           ) : (
             <>
-              <Callout tone="warn" title="Solo para desarrollo">
-                Las claves quedan en este navegador: cualquiera con acceso al equipo podría leerlas. No es una forma de ocultar un secreto. Para distribuir la extensión usa un gateway.
+              <Callout tone="warn" title="Solo para uso personal">
+                Tus claves de Tavily o Brave (y la de Anthropic) quedan en este navegador: cualquiera con acceso al equipo podría leerlas. No es una forma de ocultar un secreto. No uses este modo para distribuir la extensión; para eso usa un gateway.
               </Callout>
-              <Field label="Clave de Brave Search API" htmlFor="k-brave" hint="api-dashboard.search.brave.com · se cobra por consulta según tu plan.">
-                <input id="k-brave" className="field font-mono text-[12px]" type={showKeys ? 'text' : 'password'} value={brave} onChange={(e) => setBrave(e.target.value)} autoComplete="off" />
+              <Field label="Buscador" htmlFor="k-search">
+                <select
+                  id="k-search"
+                  className="field"
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value === 'brave' ? 'brave' : 'tavily');
+                    setKeyError(null);
+                  }}
+                >
+                  <option value="tavily">Tavily — recomendado, gratis sin tarjeta</option>
+                  <option value="brave">Brave Search</option>
+                </select>
               </Field>
+              {search === 'tavily' ? (
+                <Field
+                  label="Clave de Tavily"
+                  htmlFor="k-tavily"
+                  hint={
+                    <>
+                      Créala gratis y sin tarjeta en{' '}
+                      <a href="https://app.tavily.com" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 font-semibold">
+                        app.tavily.com <ExternalLink className="size-3" aria-hidden />
+                      </a>{' '}
+                      · el plan gratuito tiene un cupo mensual de consultas.
+                    </>
+                  }
+                >
+                  <input
+                    id="k-tavily"
+                    className="field font-mono text-[12px]"
+                    type={showKeys ? 'text' : 'password'}
+                    value={tavily}
+                    onChange={(e) => setTavily(e.target.value)}
+                    autoComplete="off"
+                    aria-invalid={keyError ? true : undefined}
+                  />
+                </Field>
+              ) : (
+                <Field label="Clave de Brave Search API" htmlFor="k-brave" hint="api-dashboard.search.brave.com · se cobra por consulta según tu plan.">
+                  <input
+                    id="k-brave"
+                    className="field font-mono text-[12px]"
+                    type={showKeys ? 'text' : 'password'}
+                    value={brave}
+                    onChange={(e) => setBrave(e.target.value)}
+                    autoComplete="off"
+                    aria-invalid={keyError ? true : undefined}
+                  />
+                </Field>
+              )}
+              {keyError && (
+                <Callout tone="error" role="alert">
+                  {keyError}
+                </Callout>
+              )}
               <Field label="Clave de Anthropic (visión)" htmlFor="k-anthropic" optional hint="Necesaria solo para identificar fotos.">
                 <input id="k-anthropic" className="field font-mono text-[12px]" type={showKeys ? 'text' : 'password'} value={anthropic} onChange={(e) => setAnthropic(e.target.value)} autoComplete="off" />
               </Field>
@@ -265,6 +350,7 @@ export function SettingsScreen({ state, onBack, onOpenDemo }: { state: SettingsS
                 onClick={() =>
                   void clearSecrets().then(() => {
                     void state.updateSecrets({}, false);
+                    setTavily('');
                     setBrave('');
                     setAnthropic('');
                     setAccessCode('');

@@ -92,6 +92,17 @@ export function HomeScreen(props: HomeProps) {
         </Card>
       )}
 
+      {props.status.kind === 'assisted' && (
+        <Callout tone="info" title="Investigación asistida (sin claves)">
+          Te daremos enlaces a la búsqueda de cada tienda y tú agregas las fichas que elijas; solo se leen esas páginas. Para búsqueda automática en internet, usa una clave gratuita de Tavily o
+          un servicio ProductRadar en{' '}
+          <Button variant="link" className="text-[12.5px]" onClick={props.onOpenSettings}>
+            Configuración
+          </Button>
+          .
+        </Callout>
+      )}
+
       <Card className="rise space-y-4 p-4 [animation-delay:60ms]">
         <Field label={es.home.market} htmlFor="market">
           <div className="relative">

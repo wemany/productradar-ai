@@ -24,6 +24,7 @@ export const es = {
   confirm: {
     eyebrow: 'Confirma que encontramos el producto correcto',
     search: (country: string) => `Buscar competencia en ${country}`,
+    assisted: (country: string) => `Buscar en tiendas de ${country}`,
   },
   identifiedBy: {
     PAGE_STRUCTURED_DATA: 'Datos estructurados de la página',

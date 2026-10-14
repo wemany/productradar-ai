@@ -1,9 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import fixtureJson from '../../../fixtures/explicitly-demo-data.json';
 import { createDemoProviders, parseDemoFixture } from '../src/demo';
 import { summarizeMarketPrices } from '../src/pricing';
+import { BraveSearchProvider } from '../src/providers/brave';
 import { recomputeReport } from '../src/report';
-import { runResearch, SearchProviderError, type WebSearchProvider } from '../src/research';
+import { runResearch, SearchProviderError, type SearchInput, type WebSearchProvider } from '../src/research';
+import type { SearchResultItem } from '../src/search-results';
 import type { ResearchReport } from '../src/schemas';
 import { ResearchReportSchema } from '../src/schemas';
 
@@ -129,6 +131,16 @@ describe('runResearch con el fixture de demostración', () => {
     expect(report.notes.join(' ')).toMatch(/cancelada/);
   });
 
+  it('la demostración no hace la búsqueda de menciones en redes', async () => {
+    const demo = createDemoProviders(fixture);
+    const spy = vi.spyOn(demo.search, 'search');
+    const report = await demoRun({ providers: demo });
+    expect(spy.mock.calls.some(([input]) => input.purpose === 'SOCIAL')).toBe(false);
+    expect(report.queries.some((q) => q.purpose === 'SOCIAL')).toBe(false);
+    expect(report.adResearch.evidence).toEqual([]);
+    expect(report.modules.ads).toEqual({ status: 'OK', message: 'Enlaces a bibliotecas oficiales listos; cantidad de anuncios no verificable' });
+  });
+
   it('corrección manual: excluir y marcar exacta recalcula estadísticas', async () => {
     const report = await demoRun();
     const edited = recomputeReport({
@@ -139,5 +151,107 @@ describe('runResearch con el fixture de demostración', () => {
     });
     const summary = summarizeMarketPrices(edited.offers, 'COP');
     expect(summary.verified?.prices).toEqual([99900, 109900, 189900]);
+  });
+});
+
+describe('menciones públicas en redes (módulo de publicidad)', () => {
+  const social = (url: string, snippet = 'Probé los DemoSonic Aura X2 y…'): SearchResultItem => ({ title: 'Publicación', url, snippet });
+  const SOCIAL_RESULTS: SearchResultItem[] = [
+    social('https://www.facebook.com/demosonic/posts/1'),
+    social('https://m.facebook.com/groups/audio/posts/2'),
+    social('https://www.instagram.com/p/abc/'),
+    social('https://www.tiktok.com/@resenas/video/3'),
+    social('https://facebook.com.evil.example/p/4'),
+    social('https://tienda-demo-uno.example/p/aura-x2'),
+    social('javascript:alert(1)'),
+    social('https://www.facebook.com/demosonic/posts/1?fbclid=dup'),
+    ...Array.from({ length: 8 }, (_, i) => social(`https://www.tiktok.com/@u${i}/video/${i}`)),
+  ];
+
+  /** Buscador real simulado (no demo) que sirve el fixture y una respuesta propia para SOCIAL. */
+  function liveLikeProviders(onSocial: (input: SearchInput) => Promise<SearchResultItem[]>) {
+    const demo = createDemoProviders(fixture);
+    const inputs: SearchInput[] = [];
+    const search: WebSearchProvider = {
+      id: 'simulado',
+      label: 'Simulado',
+      search: (input, signal) => {
+        inputs.push(input);
+        return input.purpose === 'SOCIAL' ? onSocial(input) : demo.search.search(input, signal);
+      },
+    };
+    return { providers: { search, fetcher: demo.fetcher }, inputs };
+  }
+
+  const liveRun = (providers: { search: WebSearchProvider; fetcher?: ReturnType<typeof createDemoProviders>['fetcher'] }) =>
+    runResearch({ product: fixture.product, country: 'CO', providers, financials: fixture.financials, now: fixedNow });
+
+  it('guarda hasta 8 menciones como evidencia del buscador, solo de facebook/instagram/tiktok', async () => {
+    const { providers, inputs } = liveLikeProviders(async () => SOCIAL_RESULTS);
+    const report = await liveRun(providers);
+    const socialInput = inputs.find((i) => i.purpose === 'SOCIAL');
+    expect(socialInput).toMatchObject({ query: '"DemoSonic Aura X2"', includeDomains: ['facebook.com', 'instagram.com', 'tiktok.com'] });
+    const evidence = report.adResearch.evidence;
+    expect(evidence).toHaveLength(8);
+    expect(evidence.slice(0, 4).map((e) => e.publisher)).toEqual(['facebook.com', 'm.facebook.com', 'instagram.com', 'tiktok.com']);
+    for (const e of evidence) {
+      expect(e).toMatchObject({ method: 'SEARCH_API', verification: 'SEARCH_SNIPPET_ONLY', query: '"DemoSonic Aura X2"' });
+      expect(e.url).toMatch(/^https:\/\/(www\.|m\.)?(facebook|instagram|tiktok)\.com\//);
+      expect(e.extractedText).toContain('Aura X2');
+    }
+    expect(evidence.filter((e) => e.url.includes('/demosonic/posts/1'))).toHaveLength(1);
+    expect(report.queries.at(-1)).toMatchObject({ purpose: 'SOCIAL', ok: true, resultCount: SOCIAL_RESULTS.length });
+    expect(report.modules.ads).toEqual({ status: 'OK', message: 'Enlaces a bibliotecas oficiales listos · 8 menciones públicas (no son conteo de anuncios)' });
+    expect(ResearchReportSchema.safeParse(report).success).toBe(true);
+  });
+
+  it('las menciones nunca se convierten en conteo de anuncios', async () => {
+    const { providers } = liveLikeProviders(async () => SOCIAL_RESULTS);
+    const report = await liveRun(providers);
+    expect(report.adResearch.evidence.length).toBeGreaterThan(0);
+    expect(report.adResearch.activeAdsCount).toBeNull();
+    expect(report.adResearch.historicalAdsCount).toBeNull();
+    expect(report.adResearch.links.map((l) => l.platform)).toEqual(['META', 'GOOGLE']);
+  });
+
+  it('si falla la búsqueda de menciones, el módulo sigue OK y el veredicto no cambia', async () => {
+    const ok = await liveRun(liveLikeProviders(async () => SOCIAL_RESULTS).providers);
+    const failed = await liveRun(liveLikeProviders(() => Promise.reject(new SearchProviderError('RATE_LIMITED', 'Límite alcanzado'))).providers);
+    expect(failed.modules.ads.status).toBe('OK');
+    expect(failed.modules.ads.message).toMatch(/no fue posible consultar menciones públicas/);
+    expect(failed.adResearch.evidence).toEqual([]);
+    expect(failed.incompleteModules).not.toContain('publicidad');
+    expect(failed.queries.at(-1)).toMatchObject({ purpose: 'SOCIAL', ok: false });
+    expect([failed.status, failed.verdict, failed.evidenceConfidence]).toEqual([ok.status, ok.verdict, ok.evidenceConfidence]);
+  });
+
+  it('se omite si la búsqueda de competencia falló por completo', async () => {
+    const onSocial = vi.fn(async () => SOCIAL_RESULTS);
+    const search: WebSearchProvider = {
+      id: 'x',
+      label: 'x',
+      search: (input) => (input.purpose === 'SOCIAL' ? onSocial() : Promise.reject(new SearchProviderError('UPSTREAM', 'caído'))),
+    };
+    const report = await runResearch({ product: fixture.product, country: 'CO', providers: { search }, now: fixedNow });
+    expect(report.modules.search.status).toBe('FAILED');
+    expect(onSocial).not.toHaveBeenCalled();
+    expect(report.adResearch.evidence).toEqual([]);
+  });
+
+  it('con Brave, la consulta de menciones lleva los operadores site: de las tres redes', async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      const q = new URL(url).searchParams.get('q') ?? '';
+      const results = q.includes('site:tiktok.com')
+        ? [{ title: 'Video', url: 'https://www.tiktok.com/@a/video/1', description: 'Reseña de DemoSonic Aura X2' }]
+        : [{ title: 'DemoSonic Aura X2', url: 'https://tienda-demo-uno.example/p/aura-x2', description: 'Precio $ 99.900' }];
+      return new Response(JSON.stringify({ web: { results } }), { status: 200 });
+    });
+    const search = new BraveSearchProvider({ apiKey: 'k', fetchImpl: fetchImpl as unknown as typeof fetch });
+    const report = await runResearch({ product: fixture.product, country: 'CO', providers: { search }, now: fixedNow });
+    const queries = fetchImpl.mock.calls.map(([url]) => new URL(url).searchParams.get('q'));
+    expect(queries).toContain('"DemoSonic Aura X2" (site:facebook.com OR site:instagram.com OR site:tiktok.com)');
+    expect(queries.filter((q) => q?.includes('site:facebook.com'))).toHaveLength(1);
+    expect(report.adResearch.evidence.map((e) => e.url)).toEqual(['https://www.tiktok.com/@a/video/1']);
+    expect(report.adResearch.activeAdsCount).toBeNull();
   });
 });

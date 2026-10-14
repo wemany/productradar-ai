@@ -8,6 +8,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./providers/brave": "./src/providers/brave.ts",
+    "./providers/tavily": "./src/providers/tavily.ts",
     "./providers/anthropic-vision": "./src/providers/anthropic-vision.ts"
   },
   "scripts": {

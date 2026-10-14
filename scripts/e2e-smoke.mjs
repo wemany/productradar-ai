@@ -62,9 +62,44 @@ try {
   await page.getByRole('heading', { name: /Vale la pena/ }).waitFor();
   await page.waitForTimeout(400);
   console.log('Inicio');
-  check(await page.getByText('Configuración pendiente').isVisible(), 'sin servicio configurado se muestra la pantalla de configuración');
+  check(!(await page.getByText('Configuración pendiente').isVisible()), 'sin claves no se pide configuración: el modo por defecto es la investigación asistida');
+  check(await page.getByText('Investigación asistida (sin claves)').first().isVisible(), 'el inicio explica el modo asistido y cómo pasar a búsqueda automática');
   check(!(await page.getByText('DATOS DE DEMOSTRACIÓN').isVisible()), 'fuera de la demo no aparece la marca de demostración');
   await page.screenshot({ path: join(shots, '01-inicio.png') });
+
+  // Investigación asistida: no usa red; el reporte nace sin ofertas y con enlaces a las tiendas.
+  console.log('Investigación asistida');
+  await page.getByRole('button', { name: /Escríbelo tú mismo/ }).click();
+  await page.getByLabel('Nombre del producto').fill('Audífonos Sony WH-1000XM5');
+  await page.getByLabel('Marca').fill('Sony');
+  await page.getByLabel('Modelo').fill('WH-1000XM5');
+  await page.getByRole('button', { name: /Buscar en tiendas de Colombia/ }).click();
+  await page.getByRole('heading', { name: 'Agregar competidores' }).waitFor({ timeout: 15_000 });
+  await page.waitForTimeout(400);
+  check(await page.getByRole('heading', { name: 'Agregar competidores' }).isVisible(), 'el reporte asistido muestra la tarjeta «Agregar competidores»');
+  const storeLinks = await page.locator('a[data-store-host]').evaluateAll((els) => els.map((a) => ({ host: a.getAttribute('data-store-host'), href: a.href, target: a.target, rel: a.rel })));
+  const expectedHosts = ['listado.mercadolibre.com.co', 'exito.com', 'falabella.com.co', 'alkosto.com', 'ktronix.com', 'homecenter.com.co', 'olimpica.com', 'amazon.com'];
+  check(storeLinks.length >= 6, `hay ${storeLinks.length} enlaces a búsquedas de tiendas (≥ 6)`);
+  check(
+    expectedHosts.every((h) => storeLinks.some((l) => l.host === h && new URL(l.href).hostname.replace(/^www\./, '') === h)),
+    'los enlaces apuntan a los hosts correctos de las tiendas',
+  );
+  check(
+    storeLinks.every((l) => l.href.startsWith('https://') && l.target === '_blank' && l.rel.includes('noopener') && /sony/i.test(l.href)),
+    'los enlaces abren en pestaña nueva (https, noopener) con la consulta del producto',
+  );
+  const alibaba = page.getByRole('link', { name: /Buscar en Alibaba/ });
+  check(
+    (await alibaba.isVisible()) && ((await alibaba.getAttribute('href')) ?? '').startsWith('https://www.alibaba.com/trade/search?SearchText='),
+    'la sección de Alibaba ofrece «Buscar en Alibaba»',
+  );
+  check((await page.locator('#verdict-title').innerText()) === 'Datos insuficientes', 'sin fichas agregadas el veredicto es «Datos insuficientes»');
+  check(await page.getByText('0 fichas agregadas · 0 con precio verificado').isVisible(), 'el contador de fichas empieza en 0');
+  check(await page.getByText('0 fichas en la muestra').isVisible(), 'no hay ofertas inventadas');
+  check(!(await page.getByText('DATOS DE DEMOSTRACIÓN').isVisible()), 'el reporte asistido no lleva la marca de demostración');
+  await page.screenshot({ path: join(shots, '08-asistida.png') });
+  await page.getByRole('button', { name: 'Inicio' }).first().click();
+  await page.getByRole('heading', { name: /Vale la pena/ }).waitFor();
 
   console.log('Demo: confirmación');
   await page.getByRole('button', { name: 'Abrir demostración (datos ficticios)' }).first().click();

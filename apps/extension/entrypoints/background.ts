@@ -11,6 +11,7 @@ export default defineBackground(() => {
     browser.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch((error) => console.warn('[ProductRadar] sidePanel', error));
     browser.contextMenus.removeAll(() => {
       browser.contextMenus.create({ id: 'pr-page', title: 'Investigar este producto con ProductRadar', contexts: ['page'] });
+      browser.contextMenus.create({ id: 'pr-add-offer', title: 'Agregar esta ficha a la investigación abierta', contexts: ['page'] });
       browser.contextMenus.create({ id: 'pr-link', title: 'Investigar el producto de este enlace', contexts: ['link'] });
       browser.contextMenus.create({ id: 'pr-image', title: 'Identificar esta imagen con ProductRadar', contexts: ['image'] });
     });
@@ -21,10 +22,10 @@ export default defineBackground(() => {
   // Idempotente: asegura que el clic en el ícono abra el panel aunque el service worker se reinicie.
   browser.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => undefined);
 
-  async function snapshotTab(tabId: number) {
+  async function snapshotTab(tabId: number, kind: 'snapshot' | 'addOffer' = 'snapshot') {
     try {
       const [result] = await browser.scripting.executeScript({ target: { tabId }, func: collectPageSnapshot });
-      if (result?.result) await setPendingInput({ kind: 'snapshot', snapshot: result.result });
+      if (result?.result) await setPendingInput({ kind, snapshot: result.result });
       else await setPendingInput({ kind: 'error', message: 'No fue posible leer esta página.' });
     } catch {
       await setPendingInput({ kind: 'error', message: 'Chrome no permite leer esta página (por ejemplo, páginas internas o la Chrome Web Store).' });
@@ -35,6 +36,7 @@ export default defineBackground(() => {
     // sidePanel.open debe llamarse de inmediato, dentro del gesto del usuario.
     if (tab?.windowId !== undefined) browser.sidePanel.open({ windowId: tab.windowId }).catch(() => undefined);
     if (info.menuItemId === 'pr-page' && tab?.id !== undefined) void snapshotTab(tab.id);
+    if (info.menuItemId === 'pr-add-offer' && tab?.id !== undefined) void snapshotTab(tab.id, 'addOffer');
     if (info.menuItemId === 'pr-link' && info.linkUrl) void setPendingInput({ kind: 'url', url: info.linkUrl });
     if (info.menuItemId === 'pr-image' && info.srcUrl) void setPendingInput({ kind: 'imageUrl', url: info.srcUrl, pageUrl: info.pageUrl });
   });

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { MarketConfig } from '../markets';
-import { SearchProviderError, type SearchInput, type WebSearchProvider } from '../research';
+import { SearchProviderError, stripSiteOperators, type SearchInput, type WebSearchProvider } from '../research';
 import type { SearchResultItem } from '../search-results';
 import { cleanExternalText } from '../text';
 
@@ -86,9 +86,29 @@ export function mapBraveResponse(json: unknown): SearchResultItem[] {
   return out;
 }
 
-export function buildBraveUrl(input: { query: string; market: MarketConfig; count: number; extraSnippets?: boolean }, endpoint = BRAVE_ENDPOINT): string {
+const MAX_QUERY_LENGTH = 400;
+
+/**
+ * Brave no tiene un parámetro de dominios: se quitan los `site:` existentes y se
+ * añade `(site:a OR site:b …)` al final, recortando antes la consulta base para
+ * que el operador nunca quede truncado.
+ */
+export function braveQueryWithDomains(query: string, domains?: string[]): string {
+  const clean = [...new Set((domains ?? []).map((d) => d.trim().toLowerCase()).filter((d) => /^[a-z0-9.-]+$/.test(d)))];
+  if (!clean.length) return query.slice(0, MAX_QUERY_LENGTH);
+  const clause = clean.length === 1 ? `site:${clean[0]}` : `(${clean.map((d) => `site:${d}`).join(' OR ')})`;
+  const base = stripSiteOperators(query)
+    .slice(0, MAX_QUERY_LENGTH - clause.length - 1)
+    .trim();
+  return base ? `${base} ${clause}` : clause;
+}
+
+export function buildBraveUrl(
+  input: { query: string; market: MarketConfig; count: number; extraSnippets?: boolean; includeDomains?: string[] },
+  endpoint = BRAVE_ENDPOINT,
+): string {
   const url = new URL(endpoint);
-  url.searchParams.set('q', input.query.slice(0, 400));
+  url.searchParams.set('q', braveQueryWithDomains(input.query, input.includeDomains));
   url.searchParams.set('count', String(Math.min(20, Math.max(1, input.count))));
   url.searchParams.set('country', input.market.braveCountry);
   url.searchParams.set('search_lang', input.market.searchLang);
