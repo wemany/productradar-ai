@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Globals web estándar (como en core). Los tipos propios de Workers
+    // (ExecutionContext, Cache.default…) se importan de la versión
+    // "importable" de @cloudflare/workers-types para no chocar con DOM.
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": []
+  },
+  "include": ["src", "tests"]
+}

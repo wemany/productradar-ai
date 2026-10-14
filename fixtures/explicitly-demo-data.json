@@ -1,0 +1,156 @@
+{
+  "_notice": "DATOS DE DEMOSTRACIÓN — FICTICIOS. Marca, tiendas (dominios .example), precios y referencias inventados. No representan el mercado real ni búsquedas reales.",
+  "version": 1,
+  "market": "CO",
+  "product": {
+    "name": "Audífonos inalámbricos de diadema DemoSonic Aura X2",
+    "brand": "DemoSonic",
+    "model": "Aura X2",
+    "gtin": "2000000000015",
+    "englishName": "wireless over-ear bluetooth headphones",
+    "attributes": {
+      "Color": "Negro",
+      "Conectividad": "Bluetooth 5.3"
+    },
+    "sourceUrl": "https://tienda-origen.example/producto/demosonic-aura-x2",
+    "searchQueries": [],
+    "uncertainties": [],
+    "identifiedBy": "DEMO_FIXTURE",
+    "confidence": 1
+  },
+  "financials": {
+    "currency": "COP",
+    "sellingPrice": 100000,
+    "productCost": 40000,
+    "productCostSource": "USER",
+    "shippingPaidBySeller": 8000,
+    "paymentFeePercent": 3,
+    "paymentFeeFixed": 1000,
+    "acquisitionCostPerOrder": 15000,
+    "expectedReturnLossPerOrder": 2000,
+    "otherVariableCosts": 1000,
+    "taxMode": "EXCLUDED"
+  },
+  "marketResults": [
+    {
+      "title": "Audífonos DemoSonic Aura X2 Bluetooth Negro",
+      "url": "https://tienda-demo-uno.example/producto/demosonic-aura-x2?utm_source=demo",
+      "snippet": "Compra audífonos DemoSonic Aura X2 con envío a toda Colombia. Precio $ 104.900.",
+      "publisherName": "Tienda Demo Uno"
+    },
+    {
+      "title": "DemoSonic Aura X2 - Audífonos de diadema inalámbricos",
+      "url": "https://megatienda-demo.example/p/demosonic-aura-x2-negro",
+      "snippet": "Audífonos DemoSonic Aura X2 negro. Paga contraentrega en Colombia. $ 109.900 COP.",
+      "publisherName": "Megatienda Demo"
+    },
+    {
+      "title": "Aura X2 de DemoSonic | Audio Demo Tres",
+      "url": "https://audio-demo-tres.example/products/demosonic-aura-x2",
+      "snippet": "Audífonos bluetooth DemoSonic Aura X2, garantía en Colombia.",
+      "publisherName": "Audio Demo Tres"
+    },
+    {
+      "title": "Audífonos DemoSonic Aura X2 inalámbricos",
+      "url": "https://electro-demo-cuatro.example/producto/demosonic-aura-x2",
+      "snippet": "DemoSonic Aura X2 en oferta: $ 94.900. Envíos en Colombia.",
+      "publisherName": "Electro Demo Cuatro"
+    },
+    {
+      "title": "Pack x2 Audífonos DemoSonic Aura X2",
+      "url": "https://bazar-demo-cinco.example/producto/pack-2-demosonic-aura-x2",
+      "snippet": "Combo de 2 unidades DemoSonic Aura X2 por $ 189.900.",
+      "publisherName": "Bazar Demo Cinco"
+    },
+    {
+      "title": "DemoSonic Aura X2 Reacondicionado",
+      "url": "https://outlet-demo-seis.example/producto/demosonic-aura-x2-reacondicionado",
+      "snippet": "Audífonos reacondicionados con garantía de 3 meses. $ 69.900.",
+      "publisherName": "Outlet Demo Seis"
+    },
+    {
+      "title": "Audífonos de diadema Bluetooth genéricos compatibles",
+      "url": "https://tienda-demo-siete.example/producto/audifonos-diadema-bluetooth-generico",
+      "snippet": "Audífonos genéricos de diadema, compatibles con todos los celulares. $ 39.900.",
+      "publisherName": "Tienda Demo Siete"
+    },
+    {
+      "title": "Los 10 mejores audífonos de diadema de 2026",
+      "url": "https://blog-demo.example/blog/mejores-audifonos-2026",
+      "snippet": "Comparativa de audífonos: DemoSonic Aura X2 y otros modelos.",
+      "publisherName": "Blog Demo"
+    },
+    {
+      "title": "Resultados para aura x2",
+      "url": "https://marketplace-demo.example/search?q=aura+x2",
+      "snippet": "Encuentra audífonos DemoSonic Aura X2 y más.",
+      "publisherName": "Marketplace Demo"
+    },
+    {
+      "title": "DemoSonic Aura X2 Wireless Headphones",
+      "url": "https://shop-global-demo.example/product/demosonic-aura-x2",
+      "snippet": "Ships worldwide. US$ 29.99.",
+      "publisherName": "Shop Global Demo"
+    },
+    {
+      "title": "DemoSonic Aura X2 Edición Negro",
+      "url": "https://tienda-demo-once.example/producto/demosonic-aura-x2-edicion-negro",
+      "snippet": "Audífonos DemoSonic Aura X2, disponibles en Colombia.",
+      "publisherName": "Tienda Demo Once"
+    }
+  ],
+  "supplierResults": [
+    {
+      "title": "Proveedor ficticio A — Wireless Over-Ear Headphones Bluetooth 5.3 (demo)",
+      "url": "https://www.alibaba.com/trade/search?SearchText=wireless+over-ear+headphones+bluetooth+5.3",
+      "snippet": "US$ 6.80 - 9.20 · Min. order: 500 pieces · FOB Shenzhen · datos ficticios de demostración"
+    },
+    {
+      "title": "Proveedor ficticio B — Foldable Bluetooth Headphones (demo)",
+      "url": "https://www.alibaba.com/trade/search?SearchText=foldable+bluetooth+headphones",
+      "snippet": "$8.50-$11.00 · 100 Pieces (Min. Order) · datos ficticios de demostración"
+    },
+    {
+      "title": "Proveedor ficticio C — Auriculares inalámbricos de diadema (demo)",
+      "url": "https://spanish.alibaba.com/trade/search?SearchText=auriculares+inalambricos+diadema",
+      "snippet": "US$ 7,10-9,90 · Pedido mínimo: 200 piezas · datos ficticios de demostración"
+    }
+  ],
+  "pages": {
+    "https://tienda-demo-uno.example/producto/demosonic-aura-x2": {
+      "status": 200,
+      "html": "<!doctype html>\n<html lang=\"es-CO\">\n  <head>\n    <meta charset=\"utf-8\">\n    <title>Audífonos DemoSonic Aura X2 Bluetooth Negro | Tienda ficticia de demostración</title>\n    \n    <script type=\"application/ld+json\">{\"@context\":\"https://schema.org\",\"@type\":\"Product\",\"name\":\"Audífonos DemoSonic Aura X2 Bluetooth Negro\",\"brand\":{\"@type\":\"Brand\",\"name\":\"DemoSonic\"},\"gtin13\":\"2000000000015\",\"sku\":\"DS-AX2-N\",\"offers\":{\"@type\":\"Offer\",\"price\":104900,\"priceCurrency\":\"COP\",\"availability\":\"https://schema.org/InStock\"}}</script>\n  </head>\n  <body><h1>Audífonos DemoSonic Aura X2 Bluetooth Negro</h1><p>Página ficticia de demostración.</p></body>\n</html>"
+    },
+    "https://megatienda-demo.example/p/demosonic-aura-x2-negro": {
+      "status": 200,
+      "html": "<!doctype html>\n<html lang=\"es-CO\">\n  <head>\n    <meta charset=\"utf-8\">\n    <title>DemoSonic Aura X2 Negro | Tienda ficticia de demostración</title>\n    \n    <script type=\"application/ld+json\">{\"@context\":\"https://schema.org\",\"@graph\":[{\"@type\":\"WebPage\",\"name\":\"DemoSonic Aura X2\"},{\"@context\":\"https://schema.org\",\"@type\":\"Product\",\"name\":\"DemoSonic Aura X2 Negro\",\"brand\":{\"@type\":\"Brand\",\"name\":\"DemoSonic\"},\"gtin\":\"2000000000015\",\"offers\":[{\"@type\":\"Offer\",\"price\":\"109900.00\",\"priceCurrency\":\"COP\",\"availability\":\"InStock\"}]}]}</script>\n  </head>\n  <body><h1>DemoSonic Aura X2 Negro</h1><p>Página ficticia de demostración.</p></body>\n</html>"
+    },
+    "https://audio-demo-tres.example/products/demosonic-aura-x2": {
+      "status": 200,
+      "html": "<!doctype html>\n<html lang=\"es-CO\">\n  <head>\n    <meta charset=\"utf-8\">\n    <title>DemoSonic Aura X2 | Tienda ficticia de demostración</title>\n    <meta property=\"og:title\" content=\"Audífonos DemoSonic Aura X2\">\n    <meta property=\"og:type\" content=\"product\">\n    <meta property=\"product:price:amount\" content=\"99900\">\n    <meta property=\"product:price:currency\" content=\"COP\">\n    <meta property=\"product:availability\" content=\"in stock\">\n    <meta property=\"product:brand\" content=\"DemoSonic\">\n    \n  </head>\n  <body><h1>DemoSonic Aura X2</h1><p>Página ficticia de demostración.</p></body>\n</html>"
+    },
+    "https://electro-demo-cuatro.example/producto/demosonic-aura-x2": {
+      "status": 403
+    },
+    "https://bazar-demo-cinco.example/producto/pack-2-demosonic-aura-x2": {
+      "status": 200,
+      "html": "<!doctype html>\n<html lang=\"es-CO\">\n  <head>\n    <meta charset=\"utf-8\">\n    <title>Pack x2 Audífonos DemoSonic Aura X2 | Tienda ficticia de demostración</title>\n    \n    <script type=\"application/ld+json\">{\"@context\":\"https://schema.org\",\"@type\":\"Product\",\"name\":\"Pack x2 Audífonos DemoSonic Aura X2\",\"brand\":{\"@type\":\"Brand\",\"name\":\"DemoSonic\"},\"offers\":{\"@type\":\"Offer\",\"price\":189900,\"priceCurrency\":\"COP\",\"availability\":\"https://schema.org/InStock\"}}</script>\n  </head>\n  <body><h1>Pack x2 Audífonos DemoSonic Aura X2</h1><p>Página ficticia de demostración.</p></body>\n</html>"
+    },
+    "https://outlet-demo-seis.example/producto/demosonic-aura-x2-reacondicionado": {
+      "status": 200,
+      "html": "<!doctype html>\n<html lang=\"es-CO\">\n  <head>\n    <meta charset=\"utf-8\">\n    <title>DemoSonic Aura X2 Reacondicionado | Tienda ficticia de demostración</title>\n    \n    <script type=\"application/ld+json\">{\"@context\":\"https://schema.org\",\"@type\":\"Product\",\"name\":\"DemoSonic Aura X2 Reacondicionado\",\"brand\":{\"@type\":\"Brand\",\"name\":\"DemoSonic\"},\"offers\":{\"@type\":\"Offer\",\"price\":69900,\"priceCurrency\":\"COP\",\"availability\":\"https://schema.org/InStock\"}}</script>\n  </head>\n  <body><h1>DemoSonic Aura X2 Reacondicionado</h1><p>Página ficticia de demostración.</p></body>\n</html>"
+    },
+    "https://tienda-demo-siete.example/producto/audifonos-diadema-bluetooth-generico": {
+      "status": 200,
+      "html": "<!doctype html>\n<html lang=\"es-CO\">\n  <head>\n    <meta charset=\"utf-8\">\n    <title>Audífonos de diadema Bluetooth genéricos | Tienda ficticia de demostración</title>\n    \n    <script type=\"application/ld+json\">{\"@context\":\"https://schema.org\",\"@type\":\"Product\",\"name\":\"Audífonos de diadema Bluetooth genéricos compatibles\",\"offers\":{\"@type\":\"Offer\",\"price\":39900,\"priceCurrency\":\"COP\"}}</script>\n  </head>\n  <body><h1>Audífonos de diadema Bluetooth genéricos</h1><p>Página ficticia de demostración.</p></body>\n</html>"
+    },
+    "https://shop-global-demo.example/product/demosonic-aura-x2": {
+      "status": 200,
+      "html": "<!doctype html>\n<html lang=\"es-CO\">\n  <head>\n    <meta charset=\"utf-8\">\n    <title>DemoSonic Aura X2 Wireless Headphones | Tienda ficticia de demostración</title>\n    \n    <script type=\"application/ld+json\">{\"@context\":\"https://schema.org\",\"@type\":\"Product\",\"name\":\"DemoSonic Aura X2 Wireless Headphones\",\"brand\":{\"@type\":\"Brand\",\"name\":\"DemoSonic\"},\"gtin13\":\"2000000000015\",\"offers\":{\"@type\":\"Offer\",\"price\":\"29.99\",\"priceCurrency\":\"USD\"}}</script>\n  </head>\n  <body><h1>DemoSonic Aura X2 Wireless Headphones</h1><p>Página ficticia de demostración.</p></body>\n</html>"
+    },
+    "https://tienda-demo-once.example/producto/demosonic-aura-x2-edicion-negro": {
+      "status": 200,
+      "html": "<!doctype html>\n<html lang=\"es-CO\">\n  <head>\n    <meta charset=\"utf-8\">\n    <title>DemoSonic Aura X2 Edición Negro | Tienda ficticia de demostración</title>\n    \n    <script type=\"application/ld+json\">{\"@context\":\"https://schema.org\",\"@type\":\"Product\",\"name\":\"DemoSonic Aura X2 Edición Negro\",\"brand\":{\"@type\":\"Brand\",\"name\":\"DemoSonic\"},\"offers\":{\"@type\":\"Offer\",\"price\":\"114900\"}}</script>\n  </head>\n  <body><h1>DemoSonic Aura X2 Edición Negro</h1><p>Página ficticia de demostración.</p></body>\n</html>"
+    }
+  }
+}

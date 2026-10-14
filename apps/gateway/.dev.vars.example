@@ -1,0 +1,8 @@
+# Copia este archivo como .dev.vars (ignorado por git) y completa los valores.
+# Nunca subas claves reales al repositorio.
+BRAVE_API_KEY=
+ANTHROPIC_API_KEY=
+# Opcional: si se define, la extensión debe enviar este código.
+ACCESS_CODE=
+# Orígenes permitidos en local (separados por comas), p. ej. chrome-extension://<id>
+ALLOWED_ORIGINS=

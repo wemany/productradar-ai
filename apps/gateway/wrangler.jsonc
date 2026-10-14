@@ -1,0 +1,43 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "productradar-gateway",
+  "main": "src/index.ts",
+  // Fecha compatible con el workerd instalado (no usar fechas futuras).
+  "compatibility_date": "2026-10-01",
+  // Sin nodejs_compat a propósito: el SDK de Anthropic se empaqueta con su variante web
+  // (campo "browser"), y sin process.env el SDK no lee variables ANTHROPIC_* implícitas
+  // (p. ej. ANTHROPIC_LOG=debug registraría el cuerpo de la petición con la imagen).
+  "compatibility_flags": [],
+
+  // SECRETOS: nunca en este archivo ni en el repositorio. Se definen con:
+  //   npx wrangler secret put BRAVE_API_KEY
+  //   npx wrangler secret put ANTHROPIC_API_KEY
+  //   npx wrangler secret put ACCESS_CODE      (opcional)
+  // En local se usan desde .dev.vars (ver .dev.vars.example; .dev.vars está en .gitignore).
+  "vars": {
+    "VISION_MODEL": "claude-opus-5-5",
+    "DAILY_SEARCH_LIMIT": "2000",
+    "DAILY_VISION_LIMIT": "200",
+    "RATE_LIMIT_PER_MINUTE": "30",
+    // Lista separada por comas, p. ej. "chrome-extension://<id-de-la-extensión>".
+    // Vacío = se rechaza cualquier solicitud de navegador que traiga Origin.
+    "ALLOWED_ORIGINS": ""
+  },
+
+  // Límite compartido de Cloudflare (aproximado, por ubicación). namespace_id es un
+  // entero elegido por ti, único dentro de tu cuenta.
+  "ratelimits": [
+    {
+      "name": "RATE_LIMITER",
+      "namespace_id": "1001",
+      "simple": { "limit": 30, "period": 60 }
+    }
+  ]
+
+  // Presupuesto diario (opcional). Crea el espacio con
+  //   npx wrangler kv namespace create USAGE_KV
+  // y descomenta con el id que devuelva:
+  // "kv_namespaces": [
+  //   { "binding": "USAGE_KV", "id": "<id-del-namespace>" }
+  // ]
+}

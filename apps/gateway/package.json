@@ -1,0 +1,25 @@
+{
+  "name": "@productradar/gateway",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "Gateway mínimo (Cloudflare Worker) que protege las claves de búsqueda e IA de ProductRadar AI.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.133.0",
+    "@productradar/core": "workspace:*",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261012.1",
+    "typescript": "~5.9.3",
+    "vitest": "^5.0.4",
+    "wrangler": "^4.149.0"
+  }
+}

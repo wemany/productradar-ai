@@ -1,0 +1,40 @@
+{
+  "name": "productradar-ai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ProductRadar AI: extensión de Chrome (Manifest V3) para investigar la viabilidad de vender un producto con evidencia verificable.",
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @productradar/extension dev",
+    "build": "pnpm --filter @productradar/extension build",
+    "zip": "pnpm --filter @productradar/extension zip",
+    "test": "pnpm -r --if-present test",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "lint": "eslint .",
+    "check:release": "node scripts/check-release.mjs",
+    "icons": "node scripts/generate-icons.mjs",
+    "e2e": "node scripts/e2e-smoke.mjs",
+    "gateway:dev": "pnpm --filter @productradar/gateway dev",
+    "gateway:deploy": "pnpm --filter @productradar/gateway deploy",
+    "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm zip && pnpm check:release",
+    "build:edge": "pnpm --filter @productradar/extension build:edge",
+    "zip:edge": "pnpm --filter @productradar/extension zip:edge",
+    "e2e:gateway": "node scripts/e2e-gateway.mjs",
+    "demo-fixture": "node scripts/generate-demo-fixture.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@resvg/resvg-js": "^2.6.2",
+    "eslint": "^10.12.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.13.0",
+    "playwright": "^1.64.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.71.2"
+  }
+}

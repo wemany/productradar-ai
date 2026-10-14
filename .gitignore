@@ -1,0 +1,14 @@
+node_modules/
+.output/
+.wxt/
+dist/
+coverage/
+*.log
+.env
+.env.*
+!.env.example
+.dev.vars
+.wrangler/
+test-results/
+playwright-report/
+.DS_Store
